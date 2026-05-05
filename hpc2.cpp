@@ -1,191 +1,132 @@
-#include <iostream>     // for input-output (cout)
-#include <vector>       // for dynamic arrays (vector)
-#include <cstdlib>      // for rand()
-#include <ctime>        // for time()
-#include <omp.h>        // for OpenMP (parallel programming)
+#include <iostream>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <omp.h>
 
 using namespace std;
 
-#define SIZE 10000      // size of array (large to show performance difference)
+#define SIZE 10000
 
-// 🔹 Generate Random Data
-void generateRandom(vector<int>& arr) {
-    // fill array with random values (0 to 99999)
-    for (int &x : arr)
-        x = rand() % 100000;
-}
-
-// ===============================
-// 🔵 Sequential Bubble Sort
-// ===============================
-void bubbleSortSeq(vector<int>& arr) {
-    int n = arr.size();   // get size of array
-
-    // outer loop → number of passes
-    for (int i = 0; i < n - 1; i++) {
-
-        // inner loop → compare adjacent elements
-        for (int j = 0; j < n - i - 1; j++) {
-
-            // if elements are in wrong order → swap
-            if (arr[j] > arr[j + 1])
-                swap(arr[j], arr[j + 1]);
-        }
+// -------- PRINT (only first 20 elements) --------
+void printArray(vector<int>& arr) {
+    for (int i = 0; i < 20; i++) {
+        cout << arr[i] << " ";
     }
+    cout << "... \n";
 }
 
-// ===============================
-// 🔵 Parallel Bubble Sort
-// (Odd-Even Transposition Sort)
-// ===============================
-void bubbleSortParallel(vector<int>& arr) {
-    int n = arr.size();
+// -------- BUBBLE SORT (SEQUENTIAL) --------
+void bubbleSeq(vector<int>& a) {
+    int n = a.size();
+    for (int i = 0; i < n - 1; i++)
+        for (int j = 0; j < n - i - 1; j++)
+            if (a[j] > a[j + 1])
+                swap(a[j], a[j + 1]);
+}
 
-    // perform n phases
+// -------- BUBBLE SORT (PARALLEL) --------
+void bubblePar(vector<int>& a) {
+    int n = a.size();
+
     for (int i = 0; i < n; i++) {
 
-        // 🔸 EVEN PHASE
-        // compare (0,1), (2,3), (4,5) in parallel
         #pragma omp parallel for
-        for (int j = 0; j < n - 1; j += 2) {
-            if (arr[j] > arr[j + 1])
-                swap(arr[j], arr[j + 1]);
-        }
+        for (int j = 0; j < n - 1; j += 2)
+            if (a[j] > a[j + 1])
+                swap(a[j], a[j + 1]);
 
-        // 🔸 ODD PHASE
-        // compare (1,2), (3,4), (5,6) in parallel
         #pragma omp parallel for
-        for (int j = 1; j < n - 1; j += 2) {
-            if (arr[j] > arr[j + 1])
-                swap(arr[j], arr[j + 1]);
-        }
+        for (int j = 1; j < n - 1; j += 2)
+            if (a[j] > a[j + 1])
+                swap(a[j], a[j + 1]);
     }
 }
 
-// ===============================
-// 🔴 Merge Function
-// ===============================
-void merge(vector<int>& arr, int l, int m, int r) {
-
-    int n1 = m - l + 1;   // size of left subarray
-    int n2 = r - m;       // size of right subarray
-
-    vector<int> L(n1), R(n2);   // temporary arrays
-
-    // copy data into left array
-    for (int i = 0; i < n1; i++)
-        L[i] = arr[l + i];
-
-    // copy data into right array
-    for (int j = 0; j < n2; j++)
-        R[j] = arr[m + 1 + j];
+// -------- MERGE --------
+void merge(vector<int>& a, int l, int m, int r) {
+    vector<int> left(a.begin() + l, a.begin() + m + 1);
+    vector<int> right(a.begin() + m + 1, a.begin() + r + 1);
 
     int i = 0, j = 0, k = l;
 
-    // merge both arrays in sorted order
-    while (i < n1 && j < n2) {
-        if (L[i] <= R[j])
-            arr[k++] = L[i++];   // take from left
-        else
-            arr[k++] = R[j++];   // take from right
-    }
+    while (i < left.size() && j < right.size())
+        a[k++] = (left[i] < right[j]) ? left[i++] : right[j++];
 
-    // copy remaining elements (if any)
-    while (i < n1)
-        arr[k++] = L[i++];
-
-    while (j < n2)
-        arr[k++] = R[j++];
+    while (i < left.size()) a[k++] = left[i++];
+    while (j < right.size()) a[k++] = right[j++];
 }
 
-// ===============================
-// 🔴 Sequential Merge Sort
-// ===============================
-void mergeSortSeq(vector<int>& arr, int l, int r) {
-
-    if (l < r) {   // base condition
-
-        int m = (l + r) / 2;   // find middle
-
-        // recursively sort left half
-        mergeSortSeq(arr, l, m);
-
-        // recursively sort right half
-        mergeSortSeq(arr, m + 1, r);
-
-        // merge both halves
-        merge(arr, l, m, r);
-    }
-}
-
-// ===============================
-// 🔴 Parallel Merge Sort
-// ===============================
-void mergeSortParallel(vector<int>& arr, int l, int r) {
-
+// -------- MERGE SORT (SEQUENTIAL) --------
+void mergeSeq(vector<int>& a, int l, int r) {
     if (l < r) {
+        int m = (l + r) / 2;
+        mergeSeq(a, l, m);
+        mergeSeq(a, m + 1, r);
+        merge(a, l, m, r);
+    }
+}
 
-        int m = (l + r) / 2;   // find middle
+// -------- MERGE SORT (PARALLEL) --------
+void mergePar(vector<int>& a, int l, int r) {
+    if (l < r) {
+        int m = (l + r) / 2;
 
-        // run left and right halves in parallel
         #pragma omp parallel sections
         {
             #pragma omp section
-            mergeSortParallel(arr, l, m);   // left part
+            mergePar(a, l, m);
 
             #pragma omp section
-            mergeSortParallel(arr, m + 1, r); // right part
+            mergePar(a, m + 1, r);
         }
 
-        // merge results
-        merge(arr, l, m, r);
+        merge(a, l, m, r);
     }
 }
 
-// ===============================
-// 🔹 MAIN FUNCTION
-// ===============================
+// -------- MAIN --------
 int main() {
+    vector<int> arr(SIZE), temp;
 
-    vector<int> arr(SIZE), temp;   // main array + temporary copy
+    srand(1); // fixed seed for same output
 
-    srand(time(0));        // initialize random seed
-    generateRandom(arr);   // fill array with random numbers
+    for (int i = 0; i < SIZE; i++)
+        arr[i] = rand() % 100000;
 
-    double start, end;     // for measuring time
+    double start, end;
 
-    // 🔵 Sequential Bubble Sort
-    temp = arr;   // copy original data
-    start = omp_get_wtime();   // start time
-    bubbleSortSeq(temp);       // call function
-    end = omp_get_wtime();     // end time
-    cout << "Sequential Bubble Sort Time: " << (end - start) << " sec\n";
-
-    // 🔵 Parallel Bubble Sort
+    // Bubble Sequential
     temp = arr;
     start = omp_get_wtime();
-    bubbleSortParallel(temp);
+    bubbleSeq(temp);
     end = omp_get_wtime();
-    cout << "Parallel Bubble Sort Time: " << (end - start) << " sec\n";
+    cout << "Bubble Seq Time: " << end - start << "\n";
+    printArray(temp);
 
-    // 🔴 Sequential Merge Sort
+    // Bubble Parallel
     temp = arr;
     start = omp_get_wtime();
-    mergeSortSeq(temp, 0, SIZE - 1);
+    bubblePar(temp);
     end = omp_get_wtime();
-    cout << "Sequential Merge Sort Time: " << (end - start) << " sec\n";
+    cout << "Bubble Par Time: " << end - start << "\n";
+    printArray(temp);
 
-    // 🔴 Parallel Merge Sort
+    // Merge Sequential
     temp = arr;
     start = omp_get_wtime();
-    mergeSortParallel(temp, 0, SIZE - 1);
+    mergeSeq(temp, 0, SIZE - 1);
     end = omp_get_wtime();
-    cout << "Parallel Merge Sort Time: " << (end - start) << " sec\n";
+    cout << "Merge Seq Time: " << end - start << "\n";
+    printArray(temp);
 
-    return 0;   // program ends
+    // Merge Parallel
+    temp = arr;
+    start = omp_get_wtime();
+    mergePar(temp, 0, SIZE - 1);
+    end = omp_get_wtime();
+    cout << "Merge Par Time: " << end - start << "\n";
+    printArray(temp);
+
+    return 0;
 }
-
-/*
-g++ -fopenmp -std=c++11 hpc2.cpp -o hpc2
-hpc2.exe
- */
